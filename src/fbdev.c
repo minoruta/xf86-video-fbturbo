@@ -656,6 +656,21 @@ FBDevPreInit(ScrnInfoPtr pScrn, int flags)
 	return TRUE;
 }
 
+// fix run time errors due to no symbols:
+// shadowUpdateRotatePackedWeak, shadowUpdatePackedWeak.
+// these patch is excerpt from:
+// https://aur.archlinux.org/cgit/aur.git/tree/0001-Use-own-thunk-functions-instead-of-fbdevHW-Weak.patch?h=xf86-video-fbturbo-git 
+static void
+fbdevUpdateRotatePacked(ScreenPtr pScreen, shadowBufPtr pBuf)
+{
+    shadowUpdateRotatePacked(pScreen, pBuf);
+}
+
+static void
+fbdevUpdatePacked(ScreenPtr pScreen, shadowBufPtr pBuf)
+{
+    shadowUpdatePacked(pScreen, pBuf);
+}
 
 static Bool
 FBDevCreateScreenResources(ScreenPtr pScreen)
@@ -675,7 +690,8 @@ FBDevCreateScreenResources(ScreenPtr pScreen)
     pPixmap = pScreen->GetScreenPixmap(pScreen);
 
     if (!shadowAdd(pScreen, pPixmap, fPtr->rotate ?
-		   shadowUpdateRotatePackedWeak() : shadowUpdatePackedWeak(),
+//		   shadowUpdateRotatePackedWeak() : shadowUpdatePackedWeak(),
+		   fbdevUpdateRotatePacked : fbdevUpdatePacked,
 		   FBDevWindowLinear, fPtr->rotate, NULL)) {
 	return FALSE;
     }
@@ -979,7 +995,11 @@ FBDevScreenInit(SCREEN_INIT_ARGS_DECL)
 	  xf86DrvMsg(pScrn->scrnIndex, X_INFO, "display rotated; disabling DGA\n");
 	  xf86DrvMsg(pScrn->scrnIndex, X_INFO, "using driver rotation; disabling "
 			                "XRandR\n");
+// Don't call xf86DisableRandR() on newer X.org Servers.
+// see https://gitlab.freedesktop.org/xorg/driver/xf86-video-wsfb/-/blob/master/src/wsfb_driver.c 
+#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 24
 	  xf86DisableRandR();
+#endif
 	  if (pScrn->bitsPerPixel == 24)
 	    xf86DrvMsg(pScrn->scrnIndex, X_WARNING, "rotation might be broken at 24 "
                                              "bits per pixel\n");
